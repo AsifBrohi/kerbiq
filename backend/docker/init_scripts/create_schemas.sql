@@ -1,0 +1,17 @@
+CREATE EXTENSION IF NOT EXISTS postgis;
+CREATE SCHEMA IF NOT EXISTS raw_tmo;
+CREATE SCHEMA IF NOT EXISTS stg_tmo; 
+CREATE SCHEMA IF NOT EXISTS cur_tmo; 
+
+GRANT ALL ON SCHEMA raw_tmo TO KerbIntelligence;
+GRANT ALL ON SCHEMA stg_tmo TO KerbIntelligence;
+GRANT ALL ON SCHEMA cur_tmo TO KerbIntelligence;
+
+GRANT USAGE, CREATE ON SCHEMA raw_tmo TO KerbIntelligence;
+GRANT USAGE, CREATE ON SCHEMA stg_tmo TO KerbIntelligence;
+GRANT USAGE, CREATE ON SCHEMA cur_tmo TO KerbIntelligence;
+
+-- Set default privileges for future tables
+ALTER DEFAULT PRIVILEGES IN SCHEMA raw_tmo GRANT ALL ON TABLES TO KerbIntelligence;
+ALTER DEFAULT PRIVILEGES IN SCHEMA stg_tmo GRANT ALL ON TABLES TO KerbIntelligence;
+ALTER DEFAULT PRIVILEGES IN SCHEMA cur_tmo GRANT ALL ON TABLES TO KerbIntelligence;
