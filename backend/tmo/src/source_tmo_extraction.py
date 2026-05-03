@@ -5,6 +5,9 @@ import warnings
 import polars as pl
 import requests
 import json
+import geopandas as gpd
+import shapely.wkt as shapely_wkt
+import os
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 def extract_all_boroughs()-> pl.DataFrame:
@@ -189,8 +192,103 @@ def correct_dtypes(df:pl.DataFrame) -> pl.DataFrame:
     """
     return df.with_columns(
     pl.col("date_from").str.strptime(pl.Date, "%Y-%m-%d"),
-    pl.col("date_to").str.strptime(pl.Date, "%Y-%m-%d")
+    pl.col("date_to").str.strptime(pl.Date, "%Y-%m-%d"),
+    pl.col("pm_id").cast(pl.Int64),
+    pl.col("item_ref").cast(pl.Int64),
+    pl.col("order_id").cast(pl.Int64),
+    pl.col("type_ref").cast(pl.Int64),
+    pl.col("no_of_spaces").cast(pl.Int64),
+    pl.col("length").cast(pl.Float64),
+    # pl.col("tariff_code").cast(pl.Int64),
+    pl.col("pbp_code").cast(pl.Int64),
+    pl.col("geom_srid").cast(pl.Int64)
     )
 
 raw_df= correct_dtypes(df_traffweb)
 
+def restructure_df(df: pl.DataFrame) -> pl.DataFrame:
+    """
+    this function takes a polars DataFrame and restructures it to match the schema of the raw_tmo.trafficorders_london table
+    it selects the relevant columns and renames them to match the table schema
+    """
+    return df.select(
+    'pm_id',
+    'layer', 
+    'borough', 
+    'boundedBy', 
+    'msGeometry',  
+    'item_ref', 
+    'order_ref', 
+    'order_type', 
+    'street_name', 
+    'side_of_road', 
+    'locality', 
+    'district', 
+    'ordstart', 
+    'ordfinish', 
+    'ordlocation', 
+    'schedule', 
+    'date_from', 
+    'date_to', 
+    'pre_description', 
+    'times_of_enforcement', 
+    'post_description', 
+    'sp_filename', 
+    'sp_blockname', 
+    'entry_type', 
+    'restriction', 
+    'order_id', 
+    'order_doc', 
+    'blockimagefile', 
+    'ms_grid', 
+    'type_ref', 
+    'no_of_spaces', 
+    'length', 
+    'tariff_code', 
+    'tariff', 
+    'pbp_code', 
+    'pbp_tariff', 
+    'zone_code', 
+    'order_type_ln', 
+    'side_of_road_ln', 
+    'restriction_ln', 
+    'tariff1', 
+    'tariff2', 
+    'poly_id', 
+    'polyname', 
+    'poly_info', 
+    'zonecode', 
+    'charges_doc',
+    'geom_raw', 
+    'geom_srid',  
+    'geom_type',
+    'wkt'
+    )
+
+raw_df_restructured = restructure_df(raw_df)
+def create_gdf_and_turn_wkt_into_geom(df: pl.DataFrame) -> gpd.GeoDataFrame:
+    """
+    this function takes a polars DataFrame and creates a GeoDataFrame from it
+    it converts the wkt column into a geometry column using shapely.wkt.loads
+    it sets the geometry column as the geometry for the GeoDataFrame and sets the CRS to EPSG:27700
+    """
+    pdf = df.to_pandas()
+    pdf["geom"] = pdf["wkt"].apply(
+        lambda x: shapely_wkt.loads(x) if x else None
+    )
+
+    gdf = gpd.GeoDataFrame(pdf, geometry="geom", crs="EPSG:27700")
+    return gdf
+
+raw_gdf = create_gdf_and_turn_wkt_into_geom(raw_df_restructured)
+database="KerbIntelligence"
+host="localhost"
+user="KerbIntelligence"
+password="KerbIntelligence2026"
+from sqlalchemy import create_engine
+try:
+    engine = create_engine(f"postgresql://{user}:{password}@{host}:5432/{database}")
+    raw_gdf.to_postgis("raw_tmo.trafficorders_london", engine, schema="raw_tmo",if_exists="replace", index=False)
+    print("Data successfully written to PostgreSQL")
+except Exception as e:
+    print(f"Error writing to PostgreSQL: {e}")
